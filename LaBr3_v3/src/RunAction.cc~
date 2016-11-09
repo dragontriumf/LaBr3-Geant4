@@ -1,0 +1,132 @@
+//
+// ********************************************************************
+// * License and Disclaimer                                           *
+// *                                                                  *
+// * The  Geant4 software  is  copyright of the Copyright Holders  of *
+// * the Geant4 Collaboration.  It is provided  under  the terms  and *
+// * conditions of the Geant4 Software License,  included in the file *
+// * LICENSE and available at  http://cern.ch/geant4/license .  These *
+// * include a list of copyright holders.                             *
+// *                                                                  *
+// * Neither the authors of this software system, nor their employing *
+// * institutes,nor the agencies providing financial support for this *
+// * work  make  any representation or  warranty, express or implied, *
+// * regarding  this  software system or assume any liability for its *
+// * use.  Please see the license in the file  LICENSE  and URL above *
+// * for the full disclaimer and the limitation of liability.         *
+// *                                                                  *
+// * This  code  implementation is the result of  the  scientific and *
+// * technical work of the GEANT4 collaboration.                      *
+// * By using,  copying,  modifying or  distributing the software (or *
+// * any work based  on the software)  you  agree  to acknowledge its *
+// * use  in  resulting  scientific  publications,  and indicate your *
+// * acceptance of all terms of the Geant4 Software license.          *
+// ********************************************************************
+//
+/// \file analysis/shared/src/RunAction.cc
+/// \brief Implementation of the RunAction class
+//
+//
+// $Id$
+//
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+#include "RunAction.hh"
+#include "HistoManager.hh"
+
+#include "G4Run.hh"
+#include "G4RunManager.hh"
+#include "G4UnitsTable.hh"
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+RunAction::RunAction(HistoManager* histo)
+:fHistoManager(histo)
+{}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+RunAction::~RunAction()
+{}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void RunAction::BeginOfRunAction(const G4Run* aRun)
+{ 
+  G4cout << "### Run " << aRun->GetRunID() << " start." << G4endl;
+    
+  //initialize cumulative quantities
+  //
+  fSumEWindow = fSum2EWindow = fSumEGas = fSum2EGas = fSumEDSSSD = fSum2EDSSSD = 0.;
+  fSumLGas = fSum2LGas = 0.;
+  
+  //histograms
+  //
+  fHistoManager->book(); 
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void RunAction::fillPerEvent(G4double EWin, G4double EGas,
+                                  G4double EDet, G4double LGas)
+{
+  //accumulate statistic
+  //
+  fSumEWindow += EWin;  fSum2EWindow += EWin*EWin;
+  fSumEGas += EGas;  fSum2EGas += EGas*EGas;
+  fSumEDSSSD += EDet;  fSum2EDSSSD += EDet*EDet;
+  
+  fSumLGas += LGas;  fSum2LGas += LGas*LGas;
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
+
+void RunAction::EndOfRunAction(const G4Run* aRun)
+{
+  G4int NbOfEvents = aRun->GetNumberOfEvent();
+  if (NbOfEvents == 0) return;
+  
+  //compute statistics: mean and rms
+  //
+  fSumEWindow /= NbOfEvents; fSum2EWindow /= NbOfEvents;
+  G4double rmsEWindow = fSum2EWindow - fSumEWindow*fSumEWindow;
+  if (rmsEWindow >0.) rmsEWindow = std::sqrt(rmsEWindow); else rmsEWindow = 0.;
+  
+  fSumEGas /= NbOfEvents; fSum2EGas /= NbOfEvents;
+  G4double rmsEGas = fSum2EGas - fSumEGas*fSumEGas;
+  if (rmsEGas >0.) rmsEGas = std::sqrt(rmsEGas); else rmsEGas = 0.;
+  
+  fSumEDSSSD /= NbOfEvents; fSum2EDSSSD /= NbOfEvents;
+  G4double rmsEDSSSD = fSum2EDSSSD - fSumEDSSSD*fSumEDSSSD;
+  if (rmsEDSSSD >0.) rmsEDSSSD = std::sqrt(rmsEDSSSD); else rmsEDSSSD = 0.;
+  
+  fSumLGas /= NbOfEvents; fSum2LGas /= NbOfEvents;
+  G4double rmsLGas = fSum2LGas - fSumLGas*fSumLGas;
+  if (rmsLGas >0.) rmsLGas = std::sqrt(rmsLGas); else rmsLGas = 0.;
+  
+  //print
+  //
+  G4cout
+     << "\n--------------------End of Run------------------------------\n"
+     << "\n mean Energy in Window : " << G4BestUnit(fSumEWindow,"Energy")
+     << " +- "                          << G4BestUnit(rmsEWindow,"Energy")  
+     << "\n mean Energy in Gas      : " << G4BestUnit(fSumEGas,"Energy")
+     << " +- "                          << G4BestUnit(rmsEGas,"Energy")
+     << "\n mean Energy in DSSSD      : " << G4BestUnit(fSumEDSSSD,"Energy")
+     << " +- "                          << G4BestUnit(rmsEDSSSd,"Energy")
+     << G4endl;
+     
+  G4cout
+     << "\n mean trackLength in Gas : " << G4BestUnit(fSumLGas,"Length")
+     << " +- "                               << G4BestUnit(rmsLGas,"Length")  
+     << "\n------------------------------------------------------------\n"
+     << G4endl;
+     
+  //save histograms
+  //
+  fHistoManager->PrintStatistic();
+  fHistoManager->save();   
+}
+
+//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
