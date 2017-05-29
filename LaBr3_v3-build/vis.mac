@@ -82,4 +82,4 @@
 #/vis/viewer/flush
 #/control/execute run.in
 #/control/execute run2source.in
-/control/execute lyons_run.in
+/control/execute int_src_plus_ext_point_src.in
